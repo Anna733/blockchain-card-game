@@ -139,4 +139,10 @@ contract Cards is ERC721, Ownable {
         strength = cardsImages[_cardImageId].strength;
         cardType = cardsImages[_cardImageId].cardType;
     }
+
+    /// @notice Getting the number of token ids
+    /// @return numberOfTokenIds is current number of existing token ids
+    function getNumberOfTokenIds() external view returns (uint256 numberOfTokenIds) {
+        numberOfTokenIds = _tokenIds.current();
+    }
 }
