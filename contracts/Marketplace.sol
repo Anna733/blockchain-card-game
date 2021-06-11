@@ -55,7 +55,7 @@ contract Marketplace is Ownable {
         require(sellAds[_cardId].exists == false, "Existing card");
         sellAds[_cardId] = Ad({cardId: _cardId, price: _price, exists: true, wallet: _wallet, seller: msg.sender});
         numOfAds++;
-        cards.transferFrom(msg.sender, address(this), _cardId);
+        cards.safeTransferFrom(msg.sender, address(this), _cardId);
         emit SellAd(_cardId, _price);
     }
 
@@ -107,5 +107,26 @@ contract Marketplace is Ownable {
         sellAds[_cardId].exists = false;
         numOfAds--;
         emit Removed(_cardId);
+    }
+
+    /// @notice Getting the properties of an ad
+    /// @return price is card sale price in Eth
+    /// @return exists is the card available for sale
+    /// @return wallet is the address to which money will be sent after token will be sold
+    /// @return seller card seller's address
+    function getAd(uint256 _cardId)
+        external
+        view
+        returns (
+            uint256 price,
+            bool exists,
+            address payable wallet,
+            address seller
+        )
+    {
+        price = sellAds[_cardId].price;
+        exists = sellAds[_cardId].exists;
+        wallet = sellAds[_cardId].wallet;
+        seller = sellAds[_cardId].seller;
     }
 }
