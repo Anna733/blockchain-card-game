@@ -6,6 +6,7 @@ const {
   time,
   ether,
 } = require("@openzeppelin/test-helpers");
+//const balance = require("@openzeppelin/test-helpers/src/balance");
 //const fromWei = web3.utils.fromWei;
 //const duration = time.duration;
 const BN = web3.utils.BN;
@@ -22,24 +23,26 @@ contract("Card marketplace test", (accounts) => {
   let [owner, seller, thirdParty] = accounts;
   let marketplaceInstance;
 
-  describe("Card sale", () => {
+  describe.only("Card sale", () => {
     beforeEach(async () => {
       cardsInstance = await Cards.new();
       marketplaceInstance = await Marketplace.new(cardsInstance.address);
     });
 
-    it.only("seller should be able to sell the card", async () => {
+    it("seller should be able to sell the card", async () => {
       let price = new BN(400);
       let name = "Ben";
       let strength = new BN(5);
       let cardType = new BN(0);
       let tokenURI = "Bermuda";
-      let cardImageId = 0;
-      let cardId = 1;
+      let cardImageId = new BN(0);
+      let cardId = new BN(1);
 
       await cardsInstance.createCardImage(name, strength, cardType);
       await cardsInstance.mintCard(seller, tokenURI, cardImageId);
-      await cardsInstance.approve(marketplaceInstance.address, cardId);
+      await cardsInstance.approve(marketplaceInstance.address, cardId, {
+        from: seller,
+      });
       const result = await marketplaceInstance.sell(cardId, price, thirdParty, {
         from: seller,
       });
@@ -48,74 +51,111 @@ contract("Card marketplace test", (accounts) => {
         _cardId: cardId,
         _price: price,
       });
+
+      const ad = await marketplaceInstance.getAd(cardId);
+      ad.price.should.bignumber.equal(price);
     });
 
-    it("the seller shouldn't sell a card he does not own", async () => {
-      let cardId = new BN(0);
+    it("the seller shouldn't be able to sell a card he does not own", async () => {
       let price = new BN(400);
       let name = "Ben";
       let strength = new BN(5);
       let cardType = new BN(0);
       let tokenURI = "Bermuda";
+      let cardImageId = new BN(0);
+      let cardId = new BN(1);
 
       await cardsInstance.createCardImage(name, strength, cardType);
-
-      await cardsInstance.mintCard(seller, tokenURI, cardId);
-
-      await marketplaceInstance.sell(cardId, price, thirdParty);
+      await cardsInstance.mintCard(seller, tokenURI, cardImageId);
+      await cardsInstance.approve(marketplaceInstance.address, cardId, {
+        from: seller,
+      });
+      await marketplaceInstance.sell(cardId, price, thirdParty, {
+        from: seller,
+      });
 
       await expectRevert(
         marketplaceInstance.sell(cardId, price, thirdParty),
-        "Card isn't seller's"
+        "Sender must be cardholder"
       );
     });
 
     it("the seller shouldn't sell a non-existent card", async () => {
-      let cardId = new BN(0);
       let price = new BN(400);
       let name = "Ben";
       let strength = new BN(5);
       let cardType = new BN(0);
       let tokenURI = "Bermuda";
+      let cardImageId = new BN(0);
+      let cardId = new BN(1);
 
       await cardsInstance.createCardImage(name, strength, cardType);
-
-      await cardsInstance.mintCard(seller, tokenURI, cardId);
-
-      await marketplaceInstance.sell(cardId, price, thirdParty);
+      await cardsInstance.mintCard(seller, tokenURI, cardImageId);
+      await cardsInstance.approve(marketplaceInstance.address, cardId, {
+        from: seller,
+      });
+      await marketplaceInstance.sell(cardId, price, thirdParty, {
+        from: seller,
+      });
 
       await expectRevert(
         marketplaceInstance.sell(3, price, thirdParty),
-        "Non-existent card"
+        "ERC721: owner query for nonexistent token"
       );
     });
   });
 
-  describe("Ad editing", () => {
+  describe.skip("Ad editing", () => {
     beforeEach(async () => {
       cardsInstance = await Cards.new();
       marketplaceInstance = await Marketplace.new(Cards.address);
     });
 
     it("seller should be able to edit an ad", async () => {
-      let cardId = new BN(0);
       let price = new BN(400);
       let name = "Ben";
       let strength = new BN(5);
       let cardType = new BN(0);
       let tokenURI = "Bermuda";
+      let cardImageId = new BN(0);
+      let cardId = new BN(1);
 
       await cardsInstance.createCardImage(name, strength, cardType);
+      await cardsInstance.mintCard(seller, tokenURI, cardImageId);
+      const checkingForAnOwner = await cardsInstance.ownerOf(cardId);
+      console.log(`----${owner}----`);
+      console.log(`----${seller}----`);
+      console.log(`----${thirdParty}----`);
 
-      await cardsInstance.mintCard(seller, tokenURI, cardId);
-      await marketplaceInstance.sell(cardId, price, thirdParty);
+      console.log(`----${checkingForAnOwner}-----`);
 
-      let newPrice = 4657;
+      await cardsInstance.approve(marketplaceInstance.address, cardId, {
+        from: seller,
+      });
+
+      const isApproved = await cardsInstance.isApprovedForAll(
+        seller,
+        marketplaceInstance.address
+      );
+      console.log(`----${isApproved}-----`);
+      console.log(`----${marketplaceInstance.address}-----`);
+
+      const getApprove = await cardsInstance.getApproved(cardId);
+      console.log(`----${getApprove}-----`);
+
+      await marketplaceInstance.sell(cardId, price, thirdParty, {
+        from: seller,
+      });
+
+      let newPrice = new BN(4657);
 
       const result = await marketplaceInstance.editAd(
         cardId,
         newPrice,
-        constants.ZERO_ADDRESS
+        constants.ZERO_ADDRESS,
+        {
+          from: seller,
+        }
       );
 
       expectEvent(result, "Edited", {
@@ -125,91 +165,136 @@ contract("Card marketplace test", (accounts) => {
     });
 
     it("seller shouldn't be able to edit ad with non-existent card", async () => {
-      let cardId = new BN(0);
       let price = new BN(400);
       let name = "Ben";
       let strength = new BN(5);
       let cardType = new BN(0);
       let tokenURI = "Bermuda";
+      let cardImageId = new BN(0);
+      let cardId = new BN(1);
 
       await cardsInstance.createCardImage(name, strength, cardType);
 
-      await cardsInstance.mintCard(seller, tokenURI, cardId);
+      await cardsInstance.mintCard(seller, tokenURI, cardImageId);
+      await cardsInstance.approve(marketplaceInstance.address, cardId, {
+        from: seller,
+      });
 
-      await marketplaceInstance.sell(cardId, price, thirdParty);
+      await marketplaceInstance.sell(cardId, price, thirdParty, {
+        from: seller,
+      });
 
       let newPrice = 4657;
 
       await expectRevert(
-        marketplaceInstance.editAd(3, newPrice, constants.ZERO_ADDRESS),
-        "Non-existent card"
+        marketplaceInstance.editAd(3, newPrice, constants.ZERO_ADDRESS, {
+          from: seller,
+        }),
+        "ERC721: owner query for nonexistent token"
       );
     });
   });
 
-  describe("Buying card", () => {
+  describe.skip("Buying card", () => {
     beforeEach(async () => {
       cardsInstance = await Cards.new();
       marketplaceInstance = await Marketplace.new(Cards.address);
     });
 
     it("buyer should be able to buy a card", async () => {
-      let cardId = new BN(0);
       let price = new BN(400);
       let name = "Ben";
       let strength = new BN(5);
       let cardType = new BN(0);
       let tokenURI = "Bermuda";
+      let cardImageId = new BN(0);
+      let cardId = new BN(1);
 
       await cardsInstance.createCardImage(name, strength, cardType);
-
-      await cardsInstance.mintCard(seller, tokenURI, cardId);
-
-      await marketplaceInstance.sell(cardId, price, thirdParty);
-
+      await cardsInstance.mintCard(seller, tokenURI, cardImageId);
+      await cardsInstance.approve(marketplaceInstance.address, cardId, {
+        from: seller,
+      });
+      await marketplaceInstance.sell(cardId, price, thirdParty, {
+        from: seller,
+      });
       const result = await marketplaceInstance.buyCards(cardId, price);
 
       expectEvent(result, "Bought", {
         _cardId: cardId,
         _price: price,
       });
+
+      const ad = await marketplaceInstance.getAd(cardId);
+
+      ad.price.should.equal(price);
     });
 
     it("buyer shouldn't be able to buy a non-existent card", async () => {
-      let cardId = new BN(0);
       let price = new BN(400);
       let name = "Ben";
       let strength = new BN(5);
       let cardType = new BN(0);
       let tokenURI = "Bermuda";
+      let cardImageId = new BN(0);
+      let cardId = new BN(1);
 
       await cardsInstance.createCardImage(name, strength, cardType);
-
-      await cardsInstance.mintCard(seller, tokenURI, cardId);
-
-      await marketplaceInstance.sell(cardId, price, thirdParty);
+      await cardsInstance.mintCard(seller, tokenURI, cardImageId);
+      await cardsInstance.approve(marketplaceInstance.address, cardId, {
+        from: seller,
+      });
+      await marketplaceInstance.sell(cardId, price, thirdParty, {
+        from: seller,
+      });
 
       await expectRevert(
         marketplaceInstance.buyCards(3, price, thirdParty),
-        "Non-existent card"
+        "ERC721: owner query for nonexistent token"
       );
     });
 
-    //it("buyer shouldn't be able to buy a card with insufficient balance", async () => {});
-
-    it("buyer shouldn't be able to buy a card with wrong price in ad", async () => {
-      let cardId = new BN(0);
+    it("buyer shouldn't be able to buy a card with insufficient balance", async () => {
       let price = new BN(400);
       let name = "Ben";
       let strength = new BN(5);
       let cardType = new BN(0);
       let tokenURI = "Bermuda";
+      let cardImageId = new BN(0);
+      let cardId = new BN(1);
 
       await cardsInstance.createCardImage(name, strength, cardType);
+      await cardsInstance.mintCard(seller, tokenURI, cardImageId);
+      await cardsInstance.approve(marketplaceInstance.address, cardId, {
+        from: seller,
+      });
+      await marketplaceInstance.sell(cardId, price, thirdParty, {
+        from: seller,
+      });
 
-      await cardsInstance.mintCard(seller, tokenURI, cardId);
+      await expectRevert(
+        marketplaceInstance.buyCards(1, 388, thirdParty),
+        "Insufficient balance"
+      );
+    });
 
-      await marketplaceInstance.sell(cardId, price, thirdParty);
+    it("buyer shouldn't be able to buy a card with wrong price in ad", async () => {
+      let price = new BN(400);
+      let name = "Ben";
+      let strength = new BN(5);
+      let cardType = new BN(0);
+      let tokenURI = "Bermuda";
+      let cardImageId = new BN(0);
+      let cardId = new BN(1);
+
+      await cardsInstance.createCardImage(name, strength, cardType);
+      await cardsInstance.mintCard(seller, tokenURI, cardImageId);
+      await cardsInstance.approve(marketplaceInstance.address, cardId, {
+        from: seller,
+      });
+      await marketplaceInstance.sell(cardId, price, thirdParty, {
+        from: seller,
+      });
 
       await expectRevert(
         marketplaceInstance.buyCards(0, 687578, thirdParty),
